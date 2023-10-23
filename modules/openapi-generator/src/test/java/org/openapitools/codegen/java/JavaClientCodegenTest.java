@@ -2699,4 +2699,51 @@ public class JavaClientCodegenTest {
                         .bodyContainsLines(
                                         "localVarHeaderParams.put(\"X-CUSTOM_CONSTANT_HEADER\", \"CONSTANT_VALUE\")");
     }
+
+    /**
+     * See https://github.com/OpenAPITools/openapi-generator/issues/6715
+     * <p>
+     * UPDATE: the following test has been ignored due to https://github.com/OpenAPITools/openapi-generator/pull/11081/
+     * We will contact the contributor of the following test to see if the fix will break their use cases and
+     * how we can fix it accordingly.
+     */
+    @Test
+    //@Ignore
+    public void testNativeWithUseAbstractionForFiles() throws IOException {
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put(CodegenConstants.API_PACKAGE, "xyz.abcdef.api");
+        properties.put(JavaClientCodegen.USE_ABSTRACTION_FOR_FILES, true);
+
+        File output = Files.createTempDirectory("test").toFile();
+        output.deleteOnExit();
+
+        final CodegenConfigurator configurator = new CodegenConfigurator()
+                .setGeneratorName("java")
+                .setLibrary(JavaClientCodegen.NATIVE)
+                .setAdditionalProperties(properties)
+                .setInputSpec("src/test/resources/3_0/form-multipart-binary-array.yaml")
+                .setOutputDir(output.getAbsolutePath().replace("\\", "/"));
+
+        DefaultGenerator generator = new DefaultGenerator();
+        List<File> files = generator.opts(configurator.toClientOptInput()).generate();
+        files.forEach(File::deleteOnExit);
+
+        validateJavaSourceFiles(files);
+
+        Path defaultApi = Paths.get(output + "/src/main/java/xyz/abcdef/api/MultipartApi.java");
+        TestUtils.assertFileContains(
+                defaultApi,
+                // multiple files
+                "multipartArray(java.util.Collection<InputStream> files)",
+                "formParams.addAll(\"files\", files.stream().collect(Collectors.toList()));",
+
+                // mixed
+                "multipartMixed(InputStream file, MultipartMixedMarker" + " marker)",
+                "formParams.add(\"file\", file);",
+
+                // single file
+                "multipartSingle(InputStream file)",
+                "formParams.add(\"file\", file);");
+    }
 }
